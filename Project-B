@@ -1,0 +1,256 @@
+;Pablo Ramirez(different code), Rudy Marquez, Anthony Martinez 
+;option B: Test score calculator 
+;6/6/24 
+
+.ORIG x3000
+
+; Initialize stack pointer and display prompt
+LEA R6, STACK_TOP      ; Load stack pointer
+LEA R0, PROMPT_MSG     ; Load prompt message
+PUTS                   ; Print prompt message
+
+; Input loop to read 5 test scores
+LD R1, NUM_SCORES      ; Number of scores to read
+LEA R2, SCORES_ARRAY   ; Address of the scores array
+
+INPUT_LOOP
+JSR READ_INT           ; Read an integer from the user
+STR R0, R2, #0         ; Store the score in the array
+ADD R2, R2, #1         ; Increment the array pointer
+ADD R1, R1, #-1        ; Decrement the count
+BRp INPUT_LOOP         ; Repeat until all scores are read
+
+; Calculate minimum, maximum, and average
+LEA R2, SCORES_ARRAY   ; Reload the scores array address
+JSR FIND_MIN           ; Find the minimum score
+JSR FIND_MAX           ; Find the maximum score
+JSR CALC_AVG           ; Calculate the average score
+
+; Output the results
+LEA R0, MIN_MSG        ; Load and print minimum message
+PUTS
+LDR R0, R7, #0         ; Load minimum score
+JSR PRINT_INT          ; Print the minimum score
+OUT                    ; New line
+
+LEA R0, MAX_MSG        ; Load and print maximum message
+PUTS
+LDR R0, R7, #1         ; Load maximum score
+JSR PRINT_INT          ; Print the maximum score
+OUT                    ; New line
+
+LEA R0, AVG_MSG        ; Load and print average message
+PUTS
+LDR R0, R7, #2         ; Load average score
+JSR PRINT_INT          ; Print the average score
+OUT                    ; New line
+
+; Print letter grades
+LEA R2, SCORES_ARRAY   ; Reload the scores array address
+LD R1, NUM_SCORES      ; Reload the number of scores
+
+PRINT_GRADES
+LDR R0, R2, #0         ; Load the score
+JSR GET_LETTER_GRADE   ; Get the letter grade
+JSR PRINT_CHAR         ; Print the letter grade
+OUT                    ; Print newline
+ADD R2, R2, #1         ; Increment the array pointer
+ADD R1, R1, #-1        ; Decrement the count
+BRp PRINT_GRADES       ; Repeat until all grades are printed
+
+; Halt the program
+HALT
+
+; Subroutines
+
+; Read an integer from the user
+READ_INT
+AND R0, R0, #0         ; Clear R0
+TRAP x23               ; Read first character
+OUT                    ; Echo character
+LD R1, ASCII_OFFSET    ; Load ASCII offset
+ADD R0, R0, R1         ; Convert to integer
+ADD R0, R0, R0         ; Multiply by 10 (shift left)
+ADD R0, R0, R0
+ADD R0, R0, R0
+ADD R0, R0, R0
+TRAP x23               ; Read second character
+OUT                    ; Echo character
+ADD R0, R0, R1         ; Convert to integer
+RET
+
+; Print an integer
+PRINT_INT
+AND R1, R1, #0         ; Clear R1
+ADD R1, R1, R0         ; Copy integer to R1
+LD R3, ASCII_OFFSET    ; Load ASCII offset
+
+DIVIDE_BY_TEN
+AND R2, R2, #0         ; Clear R2
+ADD R2, R1, #-10       ; R2 = R1 - 10
+BRn PRINT_UNITS        ; If R2 < 0, go to units place
+
+DIV_TENS_LOOP
+ADD R1, R1, #-10       ; Subtract 10 from R1
+ADD R2, R2, #1         ; Increment tens counter
+BRnzp DIV_TENS_LOOP
+
+PRINT_TENS
+ADD R2, R2, R3         ; Convert tens to ASCII
+TRAP x21               ; Print tens place
+ADD R0, R1, R3         ; Convert units to ASCII
+TRAP x21               ; Print units place
+RET
+
+PRINT_UNITS
+ADD R0, R1, R3         ; Convert units to ASCII
+TRAP x21               ; Print units place
+RET
+
+; Find minimum score
+FIND_MIN
+LD R1, NUM_SCORES      ; Number of scores
+LEA R2, SCORES_ARRAY   ; Address of scores array
+LDR R3, R2, #0         ; Initial minimum value
+ADD R2, R2, #1         ; Point to next score
+
+MIN_LOOP
+LDR R0, R2, #0         ; Load score
+NOT R4, R0             ; Calculate -score
+ADD R4, R4, #1
+ADD R5, R3, R4         ; Calculate current minimum - score
+BRzp MIN_CONTINUE      ; If min <= score, continue
+ADD R3, R0, #0         ; Update minimum
+
+MIN_CONTINUE
+ADD R2, R2, #1         ; Increment array pointer
+ADD R1, R1, #-1        ; Decrement count
+BRp MIN_LOOP           ; Repeat until all scores are checked
+
+STR R3, R7, #0         ; Store the minimum score
+RET
+
+; Find maximum score
+FIND_MAX
+LD R1, NUM_SCORES      ; Number of scores
+LEA R2, SCORES_ARRAY   ; Address of scores array
+LDR R3, R2, #0         ; Initial maximum value
+ADD R2, R2, #1         ; Point to next score
+
+MAX_LOOP
+LDR R0, R2, #0         ; Load score
+NOT R4, R0             ; Calculate -score
+ADD R4, R4, #1
+ADD R5, R3, R4         ; Calculate current maximum - score
+BRnp MAX_CONTINUE      ; If max >= score, continue
+ADD R3, R0, #0         ; Update maximum
+
+MAX_CONTINUE
+ADD R2, R2, #1         ; Increment array pointer
+ADD R1, R1, #-1        ; Decrement count
+BRp MAX_LOOP           ; Repeat until all scores are checked
+
+STR R3, R7, #1         ; Store the maximum score
+RET
+
+; Calculate average score
+CALC_AVG
+LD R1, NUM_SCORES      ; Number of scores
+LEA R2, SCORES_ARRAY   ; Address of scores array
+AND R3, R3, #0         ; Clear sum
+
+AVG_LOOP
+LDR R0, R2, #0         ; Load score
+ADD R3, R3, R0         ; Add score to sum
+ADD R2, R2, #1         ; Increment array pointer
+ADD R1, R1, #-1        ; Decrement count
+BRp AVG_LOOP           ; Repeat until all scores are summed
+
+LD R1, NUM_SCORES      ; Load number of scores
+AND R4, R4, #0         ; Clear quotient
+AND R5, R5, #0         ; Clear remainder
+
+; Divide sum by 5
+ADD R4, R3, #0         ; Copy sum to R4
+
+DIV_AVG_LOOP
+ADD R4, R4, #-5        ; Subtract 5 from sum
+BRn DIV_DONE           ; If negative, division is done
+ADD R5, R5, #1         ; Increment quotient
+BRnzp DIV_AVG_LOOP
+
+DIV_DONE
+STR R5, R7, #2         ; Store the average score
+RET
+
+; Get letter grade
+GET_LETTER_GRADE
+; Assume R0 has the score
+
+; Compare with 90
+ADD R2, R0, #-10
+ADD R2, R2, #-10
+ADD R2, R2, #-15       ; R2 = R0 - 35
+ADD R2, R2, #-10       ; R2 = R0 - 45 (Total: R0 - 90)
+BRn CHECK_B
+LD R0, CHAR_A          ; Load 'A'
+RET
+
+CHECK_B
+; Compare with 80
+ADD R2, R0, #-10
+ADD R2, R2, #-10
+ADD R2, R2, #-15       ; R2 = R0 - 35
+ADD R2, R2, #10        ; R2 = R0 - 25 (Total: R0 - 80)
+BRn CHECK_C
+LD R0, CHAR_B          ; Load 'B'
+RET
+
+CHECK_C
+; Compare with 70
+ADD R2, R0, #-10
+ADD R2, R2, #-10
+ADD R2, R2, #-15       ; R2 = R0 - 35
+ADD R2, R2, #5         ; R2 = R0 - 30 (Total: R0 - 70)
+BRn CHECK_D
+LD R0, CHAR_C          ; Load 'C'
+RET
+
+CHECK_D
+; Compare with 60
+ADD R2, R0, #-10
+ADD R2, R2, #-10
+ADD R2, R2, #-15       ; R2 = R0 - 35
+ADD R2, R2, #-5        ; R2 = R0 - 40 (Total: R0 - 60)
+BRn CHECK_F
+LD R0, CHAR_D          ; Load 'D'
+RET
+
+CHECK_F
+LD R0, CHAR_F          ; Load 'F'
+RET
+
+; Print character
+PRINT_CHAR
+; Assume R0 has the character to print
+TRAP x21               ; Print the character
+RET
+
+; Data and constants
+PROMPT_MSG   .STRINGZ "Enter 5 test scores: "
+MIN_MSG      .STRINGZ "Minimum score: "
+MAX_MSG      .STRINGZ "Maximum score: "
+AVG_MSG      .STRINGZ "Average score: "
+NUM_SCORES   .FILL #5
+SCORES_ARRAY .BLKW #5
+STACK_TOP    .FILL xFDFF
+ASCII_OFFSET .FILL #-48 ; ASCII offset for digits
+
+; ASCII character constants
+CHAR_A       .FILL #65  ; ASCII value for 'A'
+CHAR_B       .FILL #66  ; ASCII value for 'B'
+CHAR_C       .FILL #67  ; ASCII value for 'C'
+CHAR_D       .FILL #68  ; ASCII value for 'D'
+CHAR_F       .FILL #70  ; ASCII value for 'F'
+
+.END
